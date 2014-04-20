@@ -86,80 +86,74 @@ const char *cmd_name(uint32_t cmd)
 
 struct binder_state
 {
-    int fd;			    // /dev/binder设备文件描述符
-    void *mapped;		// /dev/binder印射到内存空间的起始地址
-    unsigned mapsize;	// 上述内存印射空间的大小
+    int fd;
+    void *mapped;
+    unsigned mapsize;
 };
 
 struct binder_state *binder_open(unsigned mapsize)
 {
     struct binder_state *bs;
 
-    bs = malloc( sizeof(*bs) );
+    bs = malloc(sizeof(*bs));
     if (!bs) {
         errno = ENOMEM;
         return 0;
     }
 
-	// 这里内部会调用驱动的open调用
     bs->fd = open("/dev/binder", O_RDWR);
-    if ( bs->fd < 0 ) {
-        fprintf( stderr,"binder: cannot open device (%s)\n",
-                strerror(errno) );
+    if (bs->fd < 0) {
+        fprintf(stderr,"binder: cannot open device (%s)\n",
+                strerror(errno));
         goto fail_open;
     }
 
     bs->mapsize = mapsize;
-	// 这里内部会调用驱动的mmap调用, PROT_READ只读映射。
-    bs->mapped = mmap( NULL, mapsize, PROT_READ, MAP_PRIVATE, bs->fd, 0 );
-    if ( bs->mapped == MAP_FAILED ) {
+    bs->mapped = mmap(NULL, mapsize, PROT_READ, MAP_PRIVATE, bs->fd, 0);
+    if (bs->mapped == MAP_FAILED) {
         fprintf(stderr,"binder: cannot map device (%s)\n",
                 strerror(errno));
         goto fail_map;
     }
 
-    /* TODO: check version */
+        /* TODO: check version */
 
     return bs;
 
 fail_map:
-    close( bs->fd );
+    close(bs->fd);
 fail_open:
-    free( bs );
+    free(bs);
     return 0;
 }
 
-void binder_close( struct binder_state *bs )
+void binder_close(struct binder_state *bs)
 {
-    munmap( bs->mapped, bs->mapsize );
-    close( bs->fd );
-    free( bs );
+    munmap(bs->mapped, bs->mapsize);
+    close(bs->fd);
+    free(bs);
 }
 
 int binder_become_context_manager(struct binder_state *bs)
 {
-    return ioctl( bs->fd, BINDER_SET_CONTEXT_MGR, 0 );
+    return ioctl(bs->fd, BINDER_SET_CONTEXT_MGR, 0);
 }
 
-int binder_write( struct binder_state *bs, void *data, unsigned len )
+int binder_write(struct binder_state *bs, void *data, unsigned len)
 {
     struct binder_write_read bwr;
     int res;
-
     bwr.write_size = len;
     bwr.write_consumed = 0;
     bwr.write_buffer = (unsigned) data;
-
     bwr.read_size = 0;
     bwr.read_consumed = 0;
     bwr.read_buffer = 0;
-
-    res = ioctl( bs->fd, BINDER_WRITE_READ, &bwr );
-    if ( res < 0 ) {
+    res = ioctl(bs->fd, BINDER_WRITE_READ, &bwr);
+    if (res < 0) {
         fprintf(stderr,"binder_write: ioctl failed (%s)\n",
                 strerror(errno));
     }
-
     return res;
 }
 
@@ -201,32 +195,27 @@ int binder_parse(struct binder_state *bs, struct binder_io *bio,
                  uint32_t *ptr, uint32_t size, binder_handler func)
 {
     int r = 1;
-    uint32_t *end = ptr + ( size / 4 );
+    uint32_t *end = ptr + (size / 4);
 
-    while ( ptr < end ) {
+    while (ptr < end) {
         uint32_t cmd = *ptr++;
-
 #if TRACE
         fprintf(stderr,"%s:\n", cmd_name(cmd));
 #endif
-
-        switch( cmd ) {
+        switch(cmd) {
         case BR_NOOP:
             break;
-
-		case BR_TRANSACTION_COMPLETE:
+        case BR_TRANSACTION_COMPLETE:
             break;
-
-		case BR_INCREFS:
+        case BR_INCREFS:
         case BR_ACQUIRE:
         case BR_RELEASE:
         case BR_DECREFS:
 #if TRACE
-            fprintf( stderr,"  %08x %08x\n", ptr[0], ptr[1] );
+            fprintf(stderr,"  %08x %08x\n", ptr[0], ptr[1]);
 #endif
             ptr += 2;
             break;
-
         case BR_TRANSACTION: {
             struct binder_txn *txn = (void *) ptr;
             if ((end - ptr) * sizeof(uint32_t) < sizeof(struct binder_txn)) {
@@ -248,7 +237,6 @@ int binder_parse(struct binder_state *bs, struct binder_io *bio,
             ptr += sizeof(*txn) / sizeof(uint32_t);
             break;
         }
-
         case BR_REPLY: {
             struct binder_txn *txn = (void*) ptr;
             if ((end - ptr) * sizeof(uint32_t) < sizeof(struct binder_txn)) {
@@ -266,22 +254,18 @@ int binder_parse(struct binder_state *bs, struct binder_io *bio,
             r = 0;
             break;
         }
-
         case BR_DEAD_BINDER: {
             struct binder_death *death = (void*) *ptr++;
             death->func(bs, death->ptr);
             break;
         }
-
         case BR_FAILED_REPLY:
             r = -1;
             break;
-
-		case BR_DEAD_REPLY:
+        case BR_DEAD_REPLY:
             r = -1;
             break;
-
-		default:
+        default:
             ALOGE("parse: OOPS %d\n", cmd);
             return -1;
         }
@@ -345,7 +329,7 @@ int binder_call(struct binder_state *bs,
     bwr.write_size = sizeof(writebuf);
     bwr.write_consumed = 0;
     bwr.write_buffer = (unsigned) &writebuf;
-
+    
     hexdump(msg->data0, msg->data - msg->data0);
     for (;;) {
         bwr.read_size = sizeof(readbuf);
@@ -370,7 +354,7 @@ fail:
     return -1;
 }
 
-void binder_loop( struct binder_state *bs, binder_handler func )
+void binder_loop(struct binder_state *bs, binder_handler func)
 {
     int res;
     struct binder_write_read bwr;
@@ -379,29 +363,28 @@ void binder_loop( struct binder_state *bs, binder_handler func )
     bwr.write_size = 0;
     bwr.write_consumed = 0;
     bwr.write_buffer = 0;
-
+    
     readbuf[0] = BC_ENTER_LOOPER;
-    binder_write( bs, readbuf, sizeof(unsigned) );
+    binder_write(bs, readbuf, sizeof(unsigned));
 
-    for ( ; ; ) {
+    for (;;) {
         bwr.read_size = sizeof(readbuf);
         bwr.read_consumed = 0;
         bwr.read_buffer = (unsigned) readbuf;
 
-        res = ioctl( bs->fd, BINDER_WRITE_READ, &bwr );
+        res = ioctl(bs->fd, BINDER_WRITE_READ, &bwr);
 
-        if ( res < 0 ) {
+        if (res < 0) {
             ALOGE("binder_loop: ioctl failed (%s)\n", strerror(errno));
             break;
         }
 
-        res = binder_parse( bs, 0, readbuf, bwr.read_consumed, func );
-        if ( res == 0 ) {
+        res = binder_parse(bs, 0, readbuf, bwr.read_consumed, func);
+        if (res == 0) {
             ALOGE("binder_loop: unexpected reply?!\n");
             break;
         }
-
-        if ( res < 0 ) {
+        if (res < 0) {
             ALOGE("binder_loop: io error %d %s\n", res, strerror(errno));
             break;
         }
@@ -468,7 +451,7 @@ static struct binder_object *bio_alloc_obj(struct binder_io *bio)
     struct binder_object *obj;
 
     obj = bio_alloc(bio, sizeof(*obj));
-
+    
     if (obj && bio->offs_avail) {
         bio->offs_avail--;
         *bio->offs++ = ((char*) obj) - ((char*) bio->data0);
