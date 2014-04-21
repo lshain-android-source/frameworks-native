@@ -79,7 +79,7 @@ int str16eq(uint16_t *a, const char *b)
 int svc_can_register(unsigned uid, uint16_t *name)
 {
     unsigned n;
-    
+
     if ((uid == 0) || (uid == AID_SYSTEM))
         return 1;
 
@@ -90,7 +90,7 @@ int svc_can_register(unsigned uid, uint16_t *name)
     return 0;
 }
 
-struct svcinfo 
+struct svcinfo
 {
     struct svcinfo *next;
     void *ptr;
@@ -122,14 +122,14 @@ void svcinfo_death(struct binder_state *bs, void *ptr)
     if (si->ptr) {
         binder_release(bs, si->ptr);
         si->ptr = 0;
-    }   
+    }
 }
 
-uint16_t svcmgr_id[] = { 
+uint16_t svcmgr_id[] = {
     'a','n','d','r','o','i','d','.','o','s','.',
-    'I','S','e','r','v','i','c','e','M','a','n','a','g','e','r' 
+    'I','S','e','r','v','i','c','e','M','a','n','a','g','e','r'
 };
-  
+
 
 void *do_find_service(struct binder_state *bs, uint16_t *s, unsigned len, unsigned uid)
 {
@@ -200,10 +200,10 @@ int do_add_service(struct binder_state *bs,
     return 0;
 }
 
-int svcmgr_handler(struct binder_state *bs,
-                   struct binder_txn *txn,
-                   struct binder_io *msg,
-                   struct binder_io *reply)
+int svcmgr_handler( struct binder_state *bs,
+                    struct binder_txn *txn,
+                    struct binder_io *msg,
+                    struct binder_io *reply )
 {
     struct svcinfo *si;
     uint16_t *s;
@@ -272,16 +272,20 @@ int svcmgr_handler(struct binder_state *bs,
 int main(int argc, char **argv)
 {
     struct binder_state *bs;
+	// binder.h #define BINDER_SERVICE_MANAGER ((void*) 0)
     void *svcmgr = BINDER_SERVICE_MANAGER;
 
-    bs = binder_open(128*1024);
+    //打开binder设备文件
+    bs = binder_open( 128*1024 );
 
-    if (binder_become_context_manager(bs)) {
+    //注册为binder上下文管理者
+    if ( binder_become_context_manager( bs ) ) {
         ALOGE("cannot become context manager (%s)\n", strerror(errno));
         return -1;
     }
 
+    //无限循环，等待clent请求服务
     svcmgr_handle = svcmgr;
-    binder_loop(bs, svcmgr_handler);
+    binder_loop( bs, svcmgr_handler );
     return 0;
 }
